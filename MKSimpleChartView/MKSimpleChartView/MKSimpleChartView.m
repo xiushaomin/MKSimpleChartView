@@ -1,16 +1,3 @@
-//
-//  GKDETFChartView.m
-//  sojex
-//
-//  Created by gkoudai_xsm on 16/10/14.
-//  Copyright © 2016年 finance. All rights reserved.
-//
-
-/*
-
- */
-
-
 #import "MKSimpleChartView.h"
 #import "UIView+FrameCategory.h"
 
