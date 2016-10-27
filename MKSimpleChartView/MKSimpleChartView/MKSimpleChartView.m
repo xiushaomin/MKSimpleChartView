@@ -54,9 +54,8 @@ CGFloat const kGKDFONTSIZE = 9;
 }
 
 - (void)p_configInitializeValue {
-   
     _margin = 10;
-    _rightMargin = self.width / 7.f;
+    _rightMargin = 10;
     UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(longPress:)];
     [self addGestureRecognizer:longPress];
     self.chartData = @[].mutableCopy;
@@ -74,8 +73,8 @@ CGFloat const kGKDFONTSIZE = 9;
     self.frameLayer = [CAShapeLayer layer];
     self.frameLayer.strokeColor = [[UIColor lightGrayColor] colorWithAlphaComponent:.5f].CGColor;
     self.frameLayer.fillColor = [UIColor clearColor].CGColor;
-    self.frameLayer.lineWidth = 1.0/[UIScreen mainScreen].scale;
-    self.frameLayer.lineDashPattern = @[@(2),@(2)];
+    self.frameLayer.lineWidth = (1.f / [UIScreen mainScreen].scale);
+    // self.frameLayer.lineDashPattern = @[@(2),@(2)];
     [self.layer addSublayer:self.frameLayer];
     
     self.shadowLayer = [CAShapeLayer layer];
@@ -84,7 +83,7 @@ CGFloat const kGKDFONTSIZE = 9;
     [self.layer addSublayer:self.shadowLayer];
     
     self.crossLayer = [CAShapeLayer layer];
-    self.crossLayer.strokeColor = [UIColor lightGrayColor].CGColor;
+    self.crossLayer.strokeColor = [UIColor redColor].CGColor;
     self.crossLayer.fillColor = [UIColor clearColor].CGColor;
     self.crossLayer.lineDashPattern = @[@(2),@(2)];
     [self.layer addSublayer:self.crossLayer];
@@ -141,8 +140,19 @@ CGFloat const kGKDFONTSIZE = 9;
         different = maxValue * 0.1;
     }
     different *= 0.05;
-    _maxValue = maxValue + different;
-    _minValue = minValue - different;
+    maxValue = maxValue + different;
+    minValue = minValue - different;
+    
+    //取目前最大值最小值的余数
+    double maxYu = fmodf(maxValue, 10.f);
+    double minYu = fmodf(minValue, 10.f);
+    //判断余数是否取下一介 也就是取 10 / 0
+    int maxTen = [self p_roundToNextSignificant:maxYu];
+    int minTen = [self p_roundToNextSignificant:minYu];
+    //减去余数 + 加上这个值  也就是个位不管怎么样都为0
+    _maxValue = (maxValue - maxYu) + maxTen;
+    _minValue = (minValue - minYu) + minTen;
+    
     if (_minValue < 0) {
         _minValue = 0;
     }
@@ -150,17 +160,20 @@ CGFloat const kGKDFONTSIZE = 9;
 
 
 - (void)p_strokeFramelayers {
-    CGFloat nStepx = (self.width - _margin - _rightMargin) / 3.f;
-    CGFloat nStepy = (self.height - 2 * _margin) / 5.f;
+    CGFloat nStepy = (self.height - 4 * _margin) / 4.f;
+    float num = self.p_getStrokelist.count / 4.f;
+    int subNum = floor(num);
+    CGFloat subX = (self.width - _margin - _rightMargin) / (self.p_getStrokelist.count - 1);
+    
     UIBezierPath *frameX_Path = [UIBezierPath bezierPath];
-    for (int i = 1; i < 3; ++i) {
-        [frameX_Path moveToPoint:(CGPoint){nStepx * i + _margin, _margin}];
-        [frameX_Path addLineToPoint:(CGPoint){nStepx * i + _margin, self.height - _margin}];
+    for (int i = subNum; i < self.p_getStrokelist.count - subNum; i += subNum) {
+        [frameX_Path moveToPoint:(CGPoint){subX * i + _margin, _margin}];
+        [frameX_Path addLineToPoint:(CGPoint){subX * i + _margin, self.height - _margin}];
     }
     UIBezierPath *frameY_Path = [UIBezierPath bezierPath];
-    for (int j = 1; j < 5; ++j) {
-        [frameY_Path moveToPoint:(CGPoint){_margin, nStepy * j + _margin}];
-        [frameY_Path addLineToPoint:(CGPoint){self.width - _rightMargin, nStepy * j + _margin}];
+    for (int j = 0; j < 5; ++j) {
+        [frameY_Path moveToPoint:(CGPoint){_margin, nStepy * j + 2*_margin}];
+        [frameY_Path addLineToPoint:(CGPoint){self.width - _rightMargin, nStepy * j + 2*_margin}];
     }
     
     UIBezierPath *framePath = [UIBezierPath bezierPath];
@@ -168,6 +181,7 @@ CGFloat const kGKDFONTSIZE = 9;
     [framePath addLineToPoint:(CGPoint){self.width - _rightMargin, _margin}];
     [framePath addLineToPoint:(CGPoint){self.width - _rightMargin, self.height - _margin}];
     [framePath addLineToPoint:(CGPoint){_margin, self.height - _margin}];
+    [framePath closePath];
     
     [framePath appendPath:frameX_Path];
     [framePath appendPath:frameY_Path];
@@ -181,12 +195,12 @@ CGFloat const kGKDFONTSIZE = 9;
     [self.chartPointArray removeAllObjects];
     
     CGFloat subX = (self.width - _margin - _rightMargin) / (self.p_getStrokelist.count - 1);
-    CGFloat nY = self.height - 2 * _margin;
+    CGFloat nY = self.height - 4 * _margin;
     UIBezierPath *chartPath = [UIBezierPath bezierPath];
     NSUInteger i = 0;
     for (NSDictionary *dic in self.p_getStrokelist) {
         CGFloat point = [dic[@"p"] floatValue];
-        CGFloat y = (_maxValue - point) / (_maxValue - _minValue) * nY + _margin;
+        CGFloat y = (_maxValue - point) / (_maxValue - _minValue) * nY + _margin * 2;
         CGFloat x = _margin + i * subX;
         if (i == 0) {
             [chartPath moveToPoint:(CGPoint){x, y}];
@@ -215,12 +229,13 @@ CGFloat const kGKDFONTSIZE = 9;
     [self.timeLayerArray makeObjectsPerformSelector:@selector(removeFromSuperlayer)];
     [self.timeLayerArray removeAllObjects];
     
-    float num = self.p_getStrokelist.count / 3.f;
-    int subNum = ceil(num);
-    int step = 1;
-    CGFloat nStepx = (self.width - _margin - _rightMargin) / 3.f;
+    float num = self.p_getStrokelist.count / 4.f;
+    int subNum = floor(num);
+    //  int step = 1;
+    CGFloat subX = (self.width - _margin - _rightMargin) / (self.p_getStrokelist.count - 1);
+    //  CGFloat nStepx = (self.width - _margin - _rightMargin) / 4.f;
     
-    for (int i = subNum; i < self.p_getStrokelist.count; i+=subNum) {
+    for (int i = subNum; i < self.p_getStrokelist.count - subNum; i+=subNum) {
         CATextLayer *timeTextLayer = [CATextLayer layer];
         timeTextLayer.font = fontRef;
         timeTextLayer.fontSize = font.pointSize;
@@ -229,9 +244,9 @@ CGFloat const kGKDFONTSIZE = 9;
         NSString *timeStr = self.p_getStrokelist[i][@"t"];
         timeTextLayer.string = timeStr;
         CGSize timeSize = [timeStr sizeWithAttributes:@{NSFontAttributeName:font}];
-        timeTextLayer.frame = (CGRect){nStepx * step + _margin - timeSize.width / 2, self.height - _margin,timeSize};
+        timeTextLayer.frame = (CGRect){subX * i + _margin - timeSize.width / 2, self.height - _margin,timeSize};
         [self.layer addSublayer:timeTextLayer];
-        step++;
+        [self.timeLayerArray addObject:timeTextLayer];
     }
     CFRelease(fontRef);
 }
@@ -245,19 +260,19 @@ CGFloat const kGKDFONTSIZE = 9;
     [self.valueLayerArray makeObjectsPerformSelector:@selector(removeFromSuperlayer)];
     [self.valueLayerArray removeAllObjects];
     
-    float subValue = (_maxValue - _minValue)/5.f;
-    CGFloat nStepy = (self.height - 2 * _margin) / 5.f;
+    float subValue = (_maxValue - _minValue)/4.f;
+    CGFloat nStepy = (self.height - 4 * _margin) / 4.f;
     
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 0; i < 5; ++i) {
         CATextLayer *valueLayer = [CATextLayer layer];
         valueLayer.font = fontRef;
         valueLayer.fontSize = font.pointSize;
         valueLayer.foregroundColor = [UIColor lightGrayColor].CGColor;
         valueLayer.contentsScale = [UIScreen mainScreen].scale;
-        NSString *valueString = [NSString stringWithFormat:@"%.2f",_maxValue - i*subValue];
+        NSString *valueString = [NSString stringWithFormat:@"%.1f",_maxValue - i*subValue];
         valueLayer.string = valueString;
         CGSize valueSize = [valueString sizeWithAttributes:@{NSFontAttributeName : font}];
-        valueLayer.frame = (CGRect){self.width - _rightMargin + (_rightMargin - valueSize.width)/2, nStepy * i + _margin - valueSize.height/2, valueSize};
+        valueLayer.frame = (CGRect){self.width - _rightMargin - valueSize.width, nStepy * i + 2*_margin - valueSize.height/2, valueSize};
         [self.layer addSublayer:valueLayer];
         [self.valueLayerArray addObject:valueLayer];
     }
@@ -291,14 +306,14 @@ CGFloat const kGKDFONTSIZE = 9;
         return;
     }
     CGFloat subX = (self.width - _margin - _rightMargin) / (self.p_getStrokelist.count - 1);
-    CGFloat nY = self.height - 2 * _margin;
+    CGFloat nY = self.height - 4 * _margin;
     NSUInteger i = 0;
     CGFloat minPadding = 0.f;
     CGPoint crossPoint;
     NSDictionary *dataDic;
     for (NSDictionary *dic in self.p_getStrokelist) {
         CGFloat pointValue = [dic[@"p"] floatValue];
-        CGFloat y = (_maxValue - pointValue) / (_maxValue - _minValue) * nY + _margin;
+        CGFloat y = (_maxValue - pointValue) / (_maxValue - _minValue) * nY + 2 * _margin;
         CGFloat x = _margin + i * subX;
         CGPoint point = (CGPoint){x, y};
         if (i == 0) {
@@ -340,7 +355,14 @@ CGFloat const kGKDFONTSIZE = 9;
     NSString *timeString = dataDic[@"t"];
     timeTextLayer.string = timeString;
     CGSize t_size = [timeTextLayer.string sizeWithAttributes:@{NSFontAttributeName:font}];
-    timeTextLayer.frame = (CGRect){crossPoint.x - t_size.width / 2, self.height - _margin - t_size.height, t_size};
+    CGFloat x = crossPoint.x - t_size.width / 2;
+    if (x > self.width - _margin - t_size.width) {
+        x = self.width - _margin - t_size.width;
+    }
+    if (x < _margin) {
+        x = _margin;
+    }
+    timeTextLayer.frame = (CGRect){x, self.height - _margin - t_size.height, t_size};
     
     CATextLayer *valueTextLayer = [CATextLayer new];
     valueTextLayer.font = fontRef;
